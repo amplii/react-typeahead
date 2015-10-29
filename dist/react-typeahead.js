@@ -291,19 +291,36 @@ var TypeaheadTokenizer = React.createClass({displayName: "TypeaheadTokenizer",
     };
   },
 
-  componentWillReceiveProps: function(nextProps){
-    // if we get new defaultProps, update selected
-    if (_arraysAreDifferent(this.props.defaultSelected, nextProps.defaultSelected)){
-      this.setState({selected: nextProps.defaultSelected.slice(0)})
-    }
-  },
-
   focus: function(){
     this.refs.typeahead.focus();
   },
 
   getSelectedTokens: function(){
     return this.state.selected;
+  },
+
+  setSelectedTokens: function(tokens){
+    this.setState({selected: tokens.slice(0)});
+  },
+
+  addSelectedToken: function(value){
+    if (this.state.selected.indexOf(value) != -1) {
+      return;
+    }
+    this.state.selected.push(value);
+    this.setState({selected: this.state.selected});
+    return true;
+  },
+
+  removeSelectedToken: function(value){
+    var index = this.state.selected.indexOf(value);
+    if (index == -1) {
+      return;
+    }
+
+    this.state.selected.splice(index, 1);
+    this.setState({selected: this.state.selected});
+    return true;
   },
 
   // TODO: Support initialized tokens
@@ -357,25 +374,20 @@ var TypeaheadTokenizer = React.createClass({displayName: "TypeaheadTokenizer",
   },
 
   _removeTokenForValue: function(value) {
-    var index = this.state.selected.indexOf(value);
-    if (index == -1) {
+    if (!this.removeSelectedToken(value)) {
       return;
     }
-
-    this.state.selected.splice(index, 1);
-    this.setState({selected: this.state.selected});
     this.props.onTokenRemove(value);
     return;
   },
 
   _addTokenForValue: function(value) {
-    if (this.state.selected.indexOf(value) != -1) {
+    if (!this.addSelectedToken(value)) {
       return;
     }
-    this.state.selected.push(value);
-    this.setState({selected: this.state.selected});
     this.refs.typeahead.setEntryText("");
     this.props.onTokenAdd(value);
+    return;
   },
 
   render: function() {
@@ -496,7 +508,6 @@ var fuzzy = require('fuzzy');
 var classNames = require('classnames');
 
 var IDENTITY_FN = function(input) { return input; };
-var SHOULD_SEARCH_VALUE = function(input) { return input && input.trim().length > 0; };
 var _generateAccessor = function(field) {
   return function(object) { return object[field]; };
 };
@@ -541,7 +552,8 @@ var Typeahead = React.createClass({displayName: "Typeahead",
     customListComponent: React.PropTypes.oneOfType([
       React.PropTypes.element,
       React.PropTypes.func
-    ])
+    ]),
+    showOptionsWhenEmpty: React.PropTypes.bool
   },
 
   getDefaultProps: function() {
@@ -562,7 +574,8 @@ var Typeahead = React.createClass({displayName: "Typeahead",
       onBlur: function(event) {},
       filterOption: null,
       defaultClassNames: true,
-      customListComponent: TypeaheadSelector
+      customListComponent: TypeaheadSelector,
+      showOptionsWhenEmpty: false
     };
   },
 
@@ -582,8 +595,14 @@ var Typeahead = React.createClass({displayName: "Typeahead",
     };
   },
 
+  _shouldSkipSearch: function(input) {
+    var emptyValue = !input || input.trim().length == 0;
+    return !this.props.showOptionsWhenEmpty && emptyValue;
+  },
+
   getOptionsForValue: function(value, options) {
-    if (!SHOULD_SEARCH_VALUE(value)) { return []; }
+    if (this._shouldSkipSearch(value)) { return []; }
+
     var filterOptions = this._generateFilterFunction();
     var result = filterOptions(value, options);
     if (this.props.maxVisible) {
@@ -619,7 +638,7 @@ var Typeahead = React.createClass({displayName: "Typeahead",
 
   _renderIncrementalSearchResults: function() {
     // Nothing has been entered into the textbox
-    if (!this.state.entryValue) {
+    if (this._shouldSkipSearch(this.state.entryValue)) {
       return "";
     }
 
@@ -772,7 +791,7 @@ var Typeahead = React.createClass({displayName: "Typeahead",
 
   componentWillReceiveProps: function(nextProps) {
     this.setState({
-      visible: this.getOptionsForValue(this.state.entryValue, nextProps.options)
+      visible: this.getOptionsForValue(nextProps.entryValue, nextProps.options)
     });
   },
 
